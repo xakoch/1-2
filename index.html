@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бей задачи тапочкой - HR Кристина</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            background-color: #222;
+            color: #fff;
+            touch-action: manipulation;
+            overflow: hidden;
+        }
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+            width: 100%;
+            max-width: 700px;
+        }
+        #ui-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px 0;
+            font-size: clamp(10px, 2.5vw, 14px);
+            box-sizing: border-box;
+        }
+        #score, #timer-display, #level-display {
+            background-color: #333;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 2px solid #555;
+        }
+        canvas {
+            display: block;
+            border: 3px solid #8B4513;
+            cursor: none;
+            width: 100%;
+            max-width: 700px;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        .message-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.8);
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 100;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .message-overlay h1 {
+            font-size: clamp(20px, 5vw, 28px);
+            margin-bottom: 15px;
+            color: #FFD700;
+        }
+         .message-overlay h2 {
+            font-size: clamp(16px, 4vw, 22px);
+            margin-bottom: 20px;
+            color: #eee;
+        }
+        .message-overlay p {
+            font-size: clamp(12px, 3vw, 16px);
+            margin-bottom: 20px;
+        }
+        .pixel-button {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid #388E3C;
+            padding: 10px 15px;
+            text-transform: uppercase;
+            font-size: clamp(10px, 2.8vw, 14px);
+            border-radius: 3px;
+            cursor: pointer;
+            box-shadow: 0 3px #2E7D32;
+            transition: all 0.1s ease;
+            margin: 5px;
+        }
+        .pixel-button:hover {
+            background-color: #45a049;
+        }
+        .pixel-button:active {
+            box-shadow: 0 1px #2E7D32;
+            transform: translateY(2px);
+        }
+        .pixel-button.large {
+            padding: 12px 20px;
+            font-size: clamp(12px, 3vw, 16px);
+            box-shadow: 0 4px #2E7D32;
+            margin-top: 15px;
+        }
+        #difficulty-selection button.selected {
+            background-color: #FF8C00;
+            border-color: #CD6600;
+            box-shadow: 0 3px #A55200;
+        }
+
+        #hr-kristina-image { /* Стили для изображения HR Кристины */
+            width: 96px; /* Можно настроить размер */
+            height: 96px;
+            border: 3px solid #FF1493; /* DeepPink */
+            border-radius: 50%; /* Сделаем круглым, как другие головы */
+            object-fit: cover; /* Чтобы изображение хорошо вписывалось */
+            margin-bottom: 15px;
+            background-color: #FFC0CB; /* Розовый фон на случай, если изображение не загрузится */
+        }
+         #loading-screen {
+            display: flex;
+         }
+    </style>
+</head>
+<body>
+    <div id="game-wrapper">
+        <div id="ui-container">
+            <div id="score">Очки: 0</div>
+            <div id="level-display">Уровень: Задача</div>
+            <div id="timer-display">Время: 60</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="loading-screen" class="message-overlay" style="display: flex;">
+        <h1>Загрузка Игры...</h1>
+        <p>Пожалуйста, подождите, ресурсы готовятся!</p>
+    </div>
+
+    <div id="start-screen" class="message-overlay">
+        <h1>Бей Задачи Клавиатурой!</h1>
+        <p>Управляй клавиатурой-курсором и кликай по головам, чтобы "закрыть" задачи.</p>
+        <h2>Выберите сложность:</h2>
+        <div id="difficulty-selection">
+            <button id="difficulty-easy" class="pixel-button" data-difficulty="easy">Легко</button>
+            <button id="difficulty-normal" class="pixel-button selected" data-difficulty="normal">Нормально</button>
+            <button id="difficulty-hard" class="pixel-button" data-difficulty="hard">Сложно</button>
+        </div>
+        <button id="start-button" class="pixel-button large">Начать Игру</button>
+    </div>
+
+    <div id="game-over-screen" class="message-overlay">
+        <img id="hr-kristina-image" src="" alt="HR Кристина">
+        <h1>Игра Окончена!</h1>
+        <p id="game-over-message">Глава HR Кристина уволила вас!</p>
+        <p id="final-score">Ваш счет: 0</p>
+        <button id="restart-button" class="pixel-button large">Заново Начать</button>
+    </div>
+
+    <script>
+        // --- Игровые настройки ---
+        const GAME_DURATION = 60;
+        const MISSED_HEADS_LIMIT = 10;
+        const SLIPPER_SIZE = { width: 80, height: 80 }; 
+        const HEAD_SIZE = { width: 64, height: 64 };   
+
+        const DIFFICULTY_SETTINGS = {
+            easy: {
+                HEAD_BASE_LIFETIME: 3500, HEAD_MIN_LIFETIME: 1200,
+                HEAD_SPAWN_BASE_INTERVAL: 2200, HEAD_SPAWN_MIN_INTERVAL: 700,
+                SCORE_FACTOR_DENOMINATOR: 45
+            },
+            normal: { 
+                HEAD_BASE_LIFETIME: 2500, HEAD_MIN_LIFETIME: 500,
+                HEAD_SPAWN_BASE_INTERVAL: 1300, HEAD_SPAWN_MIN_INTERVAL: 200,
+                SCORE_FACTOR_DENOMINATOR: 25
+            },
+            hard: {
+                HEAD_BASE_LIFETIME: 1800, HEAD_MIN_LIFETIME: 300,
+                HEAD_SPAWN_BASE_INTERVAL: 900, HEAD_SPAWN_MIN_INTERVAL: 100,
+                SCORE_FACTOR_DENOMINATOR: 15
+            }
+        };
+        let currentDifficulty = 'normal';
+
+        const URGENCY_LEVELS = {
+            0: "Задача", 11: "ЗАДАЧА!", 21: "ЗАДАЧА!!!", 31: "СРОЧНАЯ ЗАДАЧА!!!!"
+        };
+
+        const IMAGE_PATHS = {
+            slipper: 'https://raw.githubusercontent.com/xakoch/my-theme/main/klava.png',
+            danil: 'https://raw.githubusercontent.com/xakoch/my-theme/main/danil.png',
+            isa: 'https://raw.githubusercontent.com/xakoch/my-theme/main/isa.png',
+            yana: 'https://raw.githubusercontent.com/xakoch/my-theme/main/yana.png',
+            nargiz: 'https://raw.githubusercontent.com/xakoch/my-theme/main/nargiz.png',
+            hrKristina: 'https://i.pinimg.com/736x/f5/fa/fe/f5fafe2aada323c9270d91c0bcff33ac.jpg' // Добавлено изображение HR
+        };
+
+        const HEAD_TYPES_CONFIG = [
+            { name: 'Руководитель', imageName: 'danil' },
+            { name: 'Маркетолог', imageName: 'isa' },
+            { name: 'Менеджер проекта', imageNames: ['yana', 'nargiz'] }
+        ];
+
+        let canvas, ctx;
+        let score = 0;
+        let timeLeft = GAME_DURATION;
+        let gameIntervalId, headSpawnIntervalId;
+        let mouseX = 0, mouseY = 0;
+        let slipperHitAnimationTime = 0;
+        let heads = [];
+        let gameState = 'LOADING';
+        let missedHeadsInRow = 0;
+        let totalSpawnedHeads = 0;
+        let totalHitHeads = 0;
+        let headBaseLifetime, headMinLifetime, headSpawnBaseInterval, headSpawnMinInterval, scoreFactorDenominator;
+        let currentHeadSpawnInterval, currentHeadLifetime;
+
+        let images = {};
+        let imagesLoadedCount = 0;
+        let totalImagesToLoad = Object.keys(IMAGE_PATHS).length; // Автоматически обновится
+
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const loadingScreen = document.getElementById('loading-screen');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const gameOverMessageDisplay = document.getElementById('game-over-message');
+        const hrKristinaImageElement = document.getElementById('hr-kristina-image'); // Получаем элемент img
+        const difficultyButtons = document.querySelectorAll('#difficulty-selection button');
+
+        function loadImage(name, src) {
+            images[name] = new Image();
+            images[name].crossOrigin = "Anonymous"; 
+            images[name].onload = () => {
+                imagesLoadedCount++;
+                if (imagesLoadedCount === totalImagesToLoad) {
+                    gameState = 'MENU';
+                    loadingScreen.style.display = 'none';
+                    startScreen.style.display = 'flex';
+                    setCanvasDimensions();
+                }
+            };
+            images[name].onerror = () => {
+                console.error(`Ошибка загрузки изображения: ${name} (${src})`);
+                imagesLoadedCount++; 
+                 if (imagesLoadedCount === totalImagesToLoad) {
+                    gameState = 'MENU';
+                    loadingScreen.style.display = 'none';
+                    startScreen.style.display = 'flex';
+                    setCanvasDimensions(); 
+                }
+            };
+            images[name].src = src;
+        }
+
+        function loadAllImages() {
+            if (totalImagesToLoad === 0) {
+                 gameState = 'MENU';
+                 loadingScreen.style.display = 'none';
+                 startScreen.style.display = 'flex';
+                 setCanvasDimensions();
+                 return;
+            }
+            for (const name in IMAGE_PATHS) {
+                loadImage(name, IMAGE_PATHS[name]);
+            }
+        }
+
+        window.onload = () => {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+            canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', () => { 
+                gameOverScreen.style.display = 'none';
+                startScreen.style.display = 'flex';
+                gameState = 'MENU';
+            });
+            
+            difficultyButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    currentDifficulty = button.dataset.difficulty;
+                    difficultyButtons.forEach(btn => btn.classList.remove('selected'));
+                    button.classList.add('selected');
+                });
+            });
+            
+            window.addEventListener('resize', () => { 
+                if(gameState !== 'LOADING') { 
+                    setCanvasDimensions();
+                }
+            });
+
+            loadAllImages(); 
+            updateUI();
+            gameLoop();
+        };
+
+        function setCanvasDimensions() {
+            const gameWrapper = document.getElementById('game-wrapper');
+            const aspectRatio = 4 / 3; 
+            
+            canvas.width = gameWrapper.clientWidth;
+            canvas.height = canvas.width / aspectRatio;
+            ctx.imageSmoothingEnabled = false;
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            if (slipperHitAnimationTime > 0) slipperHitAnimationTime -= 16;
+
+            const now = Date.now();
+            heads = heads.filter(head => {
+                if (now > head.removeTime) {
+                    missedHeadsInRow++;
+                    checkGameOverConditions();
+                    return false;
+                }
+                return true;
+            });
+            
+            const scoreFactor = Math.min(score / scoreFactorDenominator, 1);
+            currentHeadSpawnInterval = headSpawnBaseInterval - (headSpawnBaseInterval - headSpawnMinInterval) * scoreFactor;
+            currentHeadLifetime = headBaseLifetime - (headBaseLifetime - headMinLifetime) * scoreFactor;
+
+            if (headSpawnIntervalId && GameTimer.getIntervalDuration(headSpawnIntervalId) !== currentHeadSpawnInterval) {
+                 clearInterval(headSpawnIntervalId);
+                 headSpawnIntervalId = GameTimer.setInterval(spawnHead, currentHeadSpawnInterval);
+            }
+        }
+
+        function render() {
+            ctx.fillStyle = '#D2B48C'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'PLAYING' || gameState === 'GAME_OVER') {
+                heads.forEach(drawHead);
+                drawSlipper();
+            }
+        }
+
+        function setGameParametersForDifficulty() {
+            const settings = DIFFICULTY_SETTINGS[currentDifficulty];
+            headBaseLifetime = settings.HEAD_BASE_LIFETIME;
+            headMinLifetime = settings.HEAD_MIN_LIFETIME;
+            headSpawnBaseInterval = settings.HEAD_SPAWN_BASE_INTERVAL;
+            headSpawnMinInterval = settings.HEAD_SPAWN_MIN_INTERVAL;
+            scoreFactorDenominator = settings.SCORE_FACTOR_DENOMINATOR;
+            currentHeadLifetime = headBaseLifetime;
+            currentHeadSpawnInterval = headSpawnBaseInterval;
+        }
+
+        function startGame() {
+            if (gameState === 'LOADING') return;
+            setGameParametersForDifficulty(); 
+
+            score = 0;
+            timeLeft = GAME_DURATION;
+            heads = [];
+            missedHeadsInRow = 0;
+            totalSpawnedHeads = 0;
+            totalHitHeads = 0;
+            gameState = 'PLAYING';
+
+            loadingScreen.style.display = 'none';
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            canvas.style.cursor = 'none';
+            updateUI();
+
+            clearInterval(gameIntervalId);
+            gameIntervalId = GameTimer.setInterval(() => {
+                timeLeft--;
+                updateUI();
+                if (timeLeft <= 0) endGame("Время вышло!");
+            }, 1000);
+
+            clearInterval(headSpawnIntervalId);
+            spawnHead(); 
+            headSpawnIntervalId = GameTimer.setInterval(spawnHead, currentHeadSpawnInterval);
+        }
+
+        function endGame(reason) {
+            gameState = 'GAME_OVER';
+            clearInterval(gameIntervalId);
+            clearInterval(headSpawnIntervalId);
+            canvas.style.cursor = 'default';
+
+            // Устанавливаем изображение HR Кристины
+            if (images.hrKristina && images.hrKristina.complete && images.hrKristina.naturalWidth !== 0) {
+                hrKristinaImageElement.src = images.hrKristina.src;
+            } else {
+                hrKristinaImageElement.alt = "HR Кристина (ошибка загрузки)"; // Если изображение не загрузилось
+            }
+
+            gameOverMessageDisplay.textContent = reason === "Время вышло!" ? "Время вышло!" : "Глава HR Кристина уволила вас!";
+            finalScoreDisplay.textContent = `Ваш счет: ${score}`;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function getUrgencyText() {
+            let currentText = URGENCY_LEVELS[0];
+            const urgencyScoreThresholds = Object.keys(URGENCY_LEVELS).map(Number).sort((a,b) => a-b);
+            for (const threshold of urgencyScoreThresholds) {
+                if (score >= threshold) currentText = URGENCY_LEVELS[threshold];
+                else break;
+            }
+            return currentText;
+        }
+
+        function updateUI() {
+            scoreDisplay.textContent = `Очки: ${score}`;
+            levelDisplay.textContent = `Уровень: ${getUrgencyText()}`;
+            timerDisplay.textContent = `Время: ${timeLeft}`;
+        }
+
+        function spawnHead() {
+            if (gameState !== 'PLAYING') return;
+            totalSpawnedHeads++;
+
+            const headConfigIndex = Math.floor(Math.random() * HEAD_TYPES_CONFIG.length);
+            const headConfig = HEAD_TYPES_CONFIG[headConfigIndex];
+            let headImageName;
+
+            if (headConfig.imageNames) {
+                headImageName = headConfig.imageNames[Math.floor(Math.random() * headConfig.imageNames.length)];
+            } else {
+                headImageName = headConfig.imageName;
+            }
+            
+            const headImage = images[headImageName];
+            if (!headImage || !headImage.complete || headImage.naturalWidth === 0) return;
+            
+            const headX = Math.random() * (canvas.width - HEAD_SIZE.width);
+            const headY = Math.random() * (canvas.height - HEAD_SIZE.height - 25); 
+
+            heads.push({
+                x: headX, y: headY,
+                width: HEAD_SIZE.width, height: HEAD_SIZE.height,
+                image: headImage,
+                urgencyText: getUrgencyText(),
+                spawnTime: Date.now(),
+                removeTime: Date.now() + currentHeadLifetime, 
+            });
+        }
+        
+        function checkGameOverConditions() {
+            if (gameState !== 'PLAYING') return;
+            let gameOver = false;
+            if (missedHeadsInRow >= MISSED_HEADS_LIMIT) {
+                gameOver = true;
+                reason = "Слишком много пропущенных задач!";
+            }
+            if (!gameOver && totalSpawnedHeads > 15) {
+                const missedPercentage = ((totalSpawnedHeads - totalHitHeads) / totalSpawnedHeads) * 100;
+                if (missedPercentage >= 50) {
+                    gameOver = true;
+                    reason = "Более 50% задач проигнорировано!";
+                }
+            }
+            if (gameOver) endGame(reason);
+        }
+
+        function drawSlipper() {
+            if (!images.slipper || !images.slipper.complete || images.slipper.naturalWidth === 0) return;
+            const slipperX = mouseX - SLIPPER_SIZE.width / 2;
+            const slipperY = mouseY - SLIPPER_SIZE.height / 2;
+            let scale = 1;
+            if (slipperHitAnimationTime > 0) scale = 0.85;
+            const w = SLIPPER_SIZE.width * scale;
+            const h = SLIPPER_SIZE.height * scale;
+            const x = slipperX + (SLIPPER_SIZE.width - w) / 2;
+            const y = slipperY + (SLIPPER_SIZE.height - h) / 2;
+            ctx.drawImage(images.slipper, x, y, w, h);
+        }
+
+        function drawHead(head) {
+            if (!head.image || !head.image.complete || head.image.naturalWidth === 0) return;
+            let scale = 1;
+            const timeSinceSpawn = Date.now() - head.spawnTime;
+            const appearDuration = 200; 
+            if (timeSinceSpawn < appearDuration) scale = timeSinceSpawn / appearDuration;
+            const w = head.width * scale;
+            const h = head.height * scale;
+            const x = head.x + (head.width - w) / 2;
+            const y = head.y + (head.height - h) / 2;
+            ctx.drawImage(head.image, x, y, w, h);
+
+            ctx.fillStyle = 'black';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.font = "10px 'Press Start 2P'";
+            ctx.textAlign = 'center';
+            ctx.strokeText(head.urgencyText, head.x + head.width / 2, head.y - 5);
+            ctx.fillText(head.urgencyText, head.x + head.width / 2, head.y - 5);
+        }
+
+        function onMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = event.clientX - rect.left;
+            mouseY = event.clientY - rect.top;
+        }
+        function onTouchMove(event) {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseX = event.touches[0].clientX - rect.left;
+            mouseY = event.touches[0].clientY - rect.top;
+        }
+
+        function handleHitAttempt(clickX, clickY) {
+            if (gameState !== 'PLAYING') return;
+            slipperHitAnimationTime = 100;
+            for (let i = heads.length - 1; i >= 0; i--) {
+                const head = heads[i];
+                if (clickX >= head.x && clickX <= head.x + head.width &&
+                    clickY >= head.y && clickY <= head.y + head.height) {
+                    heads.splice(i, 1);
+                    score++;
+                    totalHitHeads++;
+                    missedHeadsInRow = 0;
+                    updateUI();
+                    break;
+                }
+            }
+            checkGameOverConditions();
+        }
+
+        function onMouseDown(event) {
+            if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER') return;
+            const rect = canvas.getBoundingClientRect();
+            handleHitAttempt(event.clientX - rect.left, event.clientY - rect.top);
+        }
+        function onTouchStart(event) {
+            event.preventDefault();
+            if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER') return;
+            const rect = canvas.getBoundingClientRect();
+            const touch = event.touches[0];
+            mouseX = touch.clientX - rect.left;
+            mouseY = touch.clientY - rect.top;
+            handleHitAttempt(mouseX, mouseY);
+        }
+
+        const GameTimer = {
+            intervals: {}, nextId: 0,
+            setInterval: function(cb, dur) {
+                const id = this.nextId++;
+                this.intervals[id] = { id: setInterval(cb, dur), duration: dur };
+                return id;
+            },
+            clearInterval: function(id) {
+                if (this.intervals[id]) { clearInterval(this.intervals[id].id); delete this.intervals[id]; }
+            },
+            getIntervalDuration: function(id) { return this.intervals[id] ? this.intervals[id].duration : null; }
+        };
+    </script>
+</body>
+</html>
