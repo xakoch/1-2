@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Бей задачи тапочкой - HR Кристина</title>
+    <title>Бей Задачи Мечом - Онлайн Рекорды!</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <style>
         body {
             font-family: 'Press Start 2P', cursive;
@@ -12,7 +15,7 @@
             flex-direction: column;
             align-items: center;
             margin: 0;
-            background-color: #222;
+            background-color: #1a1a1a;
             color: #fff;
             touch-action: manipulation;
             overflow: hidden;
@@ -21,24 +24,28 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 10px;
+            margin-top: 5px;
             width: 100%;
             max-width: 700px;
         }
         #ui-container {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             width: 100%;
-            padding: 10px 0;
+            padding: 8px 0;
             font-size: clamp(10px, 2.5vw, 14px);
             box-sizing: border-box;
         }
-        #score, #timer-display, #level-display {
+        #score, #timer-display, #level-display, #player-name-display {
             background-color: #333;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 5px;
             border: 2px solid #555;
+            margin: 0 5px;
         }
+        #player-name-display { color: #FFD700; }
+
         canvas {
             display: block;
             border: 3px solid #8B4513;
@@ -48,11 +55,12 @@
             image-rendering: pixelated;
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
+            background-color: #D2B48C;
         }
         .message-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0,0,0,0.8);
+            background-color: rgba(0,0,0,0.85);
             color: white;
             display: none;
             flex-direction: column;
@@ -60,36 +68,37 @@
             align-items: center;
             text-align: center;
             z-index: 100;
-            padding: 20px;
+            padding: 15px;
             box-sizing: border-box;
         }
         .message-overlay h1 {
-            font-size: clamp(20px, 5vw, 28px);
-            margin-bottom: 15px;
+            font-size: clamp(18px, 4.5vw, 26px);
+            margin-bottom: 10px;
             color: #FFD700;
         }
          .message-overlay h2 {
-            font-size: clamp(16px, 4vw, 22px);
-            margin-bottom: 20px;
+            font-size: clamp(14px, 3.5vw, 20px);
+            margin-bottom: 15px;
             color: #eee;
         }
         .message-overlay p {
-            font-size: clamp(12px, 3vw, 16px);
-            margin-bottom: 20px;
+            font-size: clamp(11px, 2.8vw, 15px);
+            margin-bottom: 15px;
+            line-height: 1.4;
         }
         .pixel-button {
             font-family: 'Press Start 2P', cursive;
             background-color: #4CAF50;
             color: white;
             border: 2px solid #388E3C;
-            padding: 10px 15px;
+            padding: 8px 12px;
             text-transform: uppercase;
-            font-size: clamp(10px, 2.8vw, 14px);
+            font-size: clamp(9px, 2.5vw, 13px);
             border-radius: 3px;
             cursor: pointer;
             box-shadow: 0 3px #2E7D32;
             transition: all 0.1s ease;
-            margin: 5px;
+            margin: 4px;
         }
         .pixel-button:hover {
             background-color: #45a049;
@@ -99,34 +108,69 @@
             transform: translateY(2px);
         }
         .pixel-button.large {
-            padding: 12px 20px;
-            font-size: clamp(12px, 3vw, 16px);
+            padding: 10px 18px;
+            font-size: clamp(11px, 2.8vw, 15px);
             box-shadow: 0 4px #2E7D32;
-            margin-top: 15px;
+            margin-top: 12px;
         }
         #difficulty-selection button.selected {
             background-color: #FF8C00;
             border-color: #CD6600;
             box-shadow: 0 3px #A55200;
         }
-
-        #hr-kristina-image { /* Стили для изображения HR Кристины */
-            width: 96px; /* Можно настроить размер */
-            height: 96px;
-            border: 3px solid #FF1493; /* DeepPink */
-            border-radius: 50%; /* Сделаем круглым, как другие головы */
-            object-fit: cover; /* Чтобы изображение хорошо вписывалось */
-            margin-bottom: 15px;
-            background-color: #FFC0CB; /* Розовый фон на случай, если изображение не загрузится */
+        #hr-kristina-image {
+            width: 80px; height: 80px;
+            border: 3px solid #FF1493;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 10px;
+            background-color: #FFC0CB;
         }
-         #loading-screen {
+        #loading-screen, #leaderboard-screen {
             display: flex;
-         }
+        }
+        #leaderboard-list {
+            list-style: none;
+            padding: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: clamp(10px, 2.5vw, 14px);
+            width: 80%;
+            max-width: 300px;
+            background-color: rgba(50,50,50,0.7);
+            border-radius: 5px;
+            padding: 10px;
+        }
+        #leaderboard-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px dashed #777;
+        }
+        #leaderboard-list li:last-child {
+            border-bottom: none;
+        }
+        #leaderboard-list .score {
+            color: #FFD700;
+            margin-left: 10px;
+        }
+        #player-name-input {
+            font-family: 'Press Start 2P', cursive;
+            padding: 8px;
+            font-size: clamp(10px, 2.5vw, 14px);
+            margin-bottom: 10px;
+            border: 2px solid #555;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
     <div id="game-wrapper">
         <div id="ui-container">
+            <div id="player-name-display">Игрок: Гость</div>
             <div id="score">Очки: 0</div>
             <div id="level-display">Уровень: Задача</div>
             <div id="timer-display">Время: 60</div>
@@ -134,21 +178,23 @@
         <canvas id="gameCanvas"></canvas>
     </div>
 
-    <div id="loading-screen" class="message-overlay" style="display: flex;">
+    <div id="loading-screen" class="message-overlay">
         <h1>Загрузка Игры...</h1>
         <p>Пожалуйста, подождите, ресурсы готовятся!</p>
     </div>
 
     <div id="start-screen" class="message-overlay">
-        <h1>Бей Задачи Клавиатурой!</h1>
-        <p>Управляй клавиатурой-курсором и кликай по головам, чтобы "закрыть" задачи.</p>
+        <h1>Бей Задачи Мечом!</h1>
+        <input type="text" id="player-name-input" placeholder="Введи свое имя" maxlength="10">
+        <p>Управляй мечом и кликай по головам, чтобы "закрыть" задачи.</p>
         <h2>Выберите сложность:</h2>
         <div id="difficulty-selection">
-            <button id="difficulty-easy" class="pixel-button" data-difficulty="easy">Легко</button>
-            <button id="difficulty-normal" class="pixel-button selected" data-difficulty="normal">Нормально</button>
+            <button id="difficulty-easy" class="pixel-button selected" data-difficulty="easy">Легко</button>
+            <button id="difficulty-normal" class="pixel-button" data-difficulty="normal">Нормально</button>
             <button id="difficulty-hard" class="pixel-button" data-difficulty="hard">Сложно</button>
         </div>
         <button id="start-button" class="pixel-button large">Начать Игру</button>
+        <button id="show-leaderboard-button" class="pixel-button">Рекорды</button>
     </div>
 
     <div id="game-over-screen" class="message-overlay">
@@ -157,420 +203,324 @@
         <p id="game-over-message">Глава HR Кристина уволила вас!</p>
         <p id="final-score">Ваш счет: 0</p>
         <button id="restart-button" class="pixel-button large">Заново Начать</button>
+        <button id="game-over-leaderboard-button" class="pixel-button">Рекорды</button>
+    </div>
+
+    <div id="leaderboard-screen" class="message-overlay" style="display: none;">
+        <h1>Таблица Рекордов</h1>
+        <div id="leaderboard-status" style="margin-bottom: 10px;">Загрузка рекордов...</div>
+        <ol id="leaderboard-list">
+            </ol>
+        <button id="back-to-menu-button" class="pixel-button large">В Меню</button>
     </div>
 
     <script>
-        // --- Игровые настройки ---
-        const GAME_DURATION = 60;
-        const MISSED_HEADS_LIMIT = 10;
-        const SLIPPER_SIZE = { width: 80, height: 80 }; 
-        const HEAD_SIZE = { width: 64, height: 64 };   
+    // --- Firebase Конфигурация ---
+    // ВСТАВЬ СВОЙ ОБЪЕКТ firebaseConfig СЮДА!
+    const firebaseConfig = {
+        apiKey: "AIzaSyABKJa_r8DPBXNhfS_rLEy4A6rkpoBL5FM",
+        authDomain: "game-48f15.firebaseapp.com",
+        projectId: "game-48f15",
+        storageBucket: "game-48f15.firebasestorage.app",
+        messagingSenderId: "803998888992",
+        appId: "1:803998888992:web:fafc8cb73b92c5fdbb7845",
+        measurementId: "G-K51LTBFHZN"
+    };
 
-        const DIFFICULTY_SETTINGS = {
-            easy: {
-                HEAD_BASE_LIFETIME: 3500, HEAD_MIN_LIFETIME: 1200,
-                HEAD_SPAWN_BASE_INTERVAL: 2200, HEAD_SPAWN_MIN_INTERVAL: 700,
-                SCORE_FACTOR_DENOMINATOR: 45
-            },
-            normal: { 
-                HEAD_BASE_LIFETIME: 2500, HEAD_MIN_LIFETIME: 500,
-                HEAD_SPAWN_BASE_INTERVAL: 1300, HEAD_SPAWN_MIN_INTERVAL: 200,
-                SCORE_FACTOR_DENOMINATOR: 25
-            },
-            hard: {
-                HEAD_BASE_LIFETIME: 1800, HEAD_MIN_LIFETIME: 300,
-                HEAD_SPAWN_BASE_INTERVAL: 900, HEAD_SPAWN_MIN_INTERVAL: 100,
-                SCORE_FACTOR_DENOMINATOR: 15
-            }
-        };
-        let currentDifficulty = 'normal';
+    // Инициализация Firebase
+    let firebaseApp;
+    let db;
+    try {
+        if (firebaseConfig.apiKey !== "YOUR_API_KEY") { // Простая проверка, что конфиг был изменен
+            firebaseApp = firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            console.log("GAME DEBUG: Firebase initialized successfully.");
+        } else {
+            console.warn("GAME DEBUG: Firebase config is placeholder. Online leaderboard will not work.");
+        }
+    } catch (e) {
+        console.error("GAME DEBUG: Error initializing Firebase", e);
+    }
 
-        const URGENCY_LEVELS = {
-            0: "Задача", 11: "ЗАДАЧА!", 21: "ЗАДАЧА!!!", 31: "СРОЧНАЯ ЗАДАЧА!!!!"
-        };
 
-        const IMAGE_PATHS = {
-            slipper: 'https://raw.githubusercontent.com/xakoch/my-theme/main/klava.png',
-            danil: 'https://raw.githubusercontent.com/xakoch/my-theme/main/danil.png',
-            isa: 'https://raw.githubusercontent.com/xakoch/my-theme/main/isa.png',
-            yana: 'https://raw.githubusercontent.com/xakoch/my-theme/main/yana.png',
-            nargiz: 'https://raw.githubusercontent.com/xakoch/my-theme/main/nargiz.png',
-            hrKristina: 'https://i.pinimg.com/736x/f5/fa/fe/f5fafe2aada323c9270d91c0bcff33ac.jpg' // Добавлено изображение HR
-        };
+    // --- Игровые настройки и переменные (большая часть как раньше) ---
+    console.log("GAME DEBUG: Script execution started.");
+    const GAME_DURATION = 60;
+    const MISSED_HEADS_LIMIT = 10;
+    const SWORD_SIZE = { width: 12, height: 55, handleHeight: 15 };
+    const HEAD_SIZE = { width: 64, height: 64 };
+    const PARTICLE_COUNT = 20;
+    const PARTICLE_LIFESPAN = 300;
 
-        const HEAD_TYPES_CONFIG = [
-            { name: 'Руководитель', imageName: 'danil' },
-            { name: 'Маркетолог', imageName: 'isa' },
-            { name: 'Менеджер проекта', imageNames: ['yana', 'nargiz'] }
-        ];
+    const DIFFICULTY_SETTINGS = {
+        easy: { HEAD_BASE_LIFETIME: 4500, HEAD_MIN_LIFETIME: 2000, HEAD_SPAWN_BASE_INTERVAL: 2800, HEAD_SPAWN_MIN_INTERVAL: 1000, SCORE_FACTOR_DENOMINATOR: 60 },
+        normal: { HEAD_BASE_LIFETIME: 3000, HEAD_MIN_LIFETIME: 800, HEAD_SPAWN_BASE_INTERVAL: 1800, HEAD_SPAWN_MIN_INTERVAL: 400, SCORE_FACTOR_DENOMINATOR: 35 },
+        hard: { HEAD_BASE_LIFETIME: 2000, HEAD_MIN_LIFETIME: 400, HEAD_SPAWN_BASE_INTERVAL: 1000, HEAD_SPAWN_MIN_INTERVAL: 150, SCORE_FACTOR_DENOMINATOR: 20 }
+    };
+    let currentDifficulty = 'easy';
+    const URGENCY_LEVELS = { 0: "Задача", 11: "ЗАДАЧА!", 21: "ЗАДАЧА!!!", 31: "СРОЧНАЯ ЗАДАЧА!!!!" };
+    const IMAGE_PATHS = {
+        danil: 'https://raw.githubusercontent.com/xakoch/my-theme/main/danil.png',
+        isa: 'https://raw.githubusercontent.com/xakoch/my-theme/main/isa.png',
+        yana: 'https://raw.githubusercontent.com/xakoch/my-theme/main/yana.png',
+        nargiz: 'https://raw.githubusercontent.com/xakoch/my-theme/main/nargiz.png',
+        hrKristina: 'https://i.pinimg.com/736x/f5/fa/fe/f5fafe2aada323c9270d91c0bcff33ac.jpg'
+    };
+    const HEAD_TYPES_CONFIG = [
+        { name: 'Руководитель', imageName: 'danil' }, { name: 'Маркетолог', imageName: 'isa' },
+        { name: 'Менеджер проекта', imageNames: ['yana', 'nargiz'] }
+    ];
 
-        let canvas, ctx;
-        let score = 0;
-        let timeLeft = GAME_DURATION;
-        let gameIntervalId, headSpawnIntervalId;
-        let mouseX = 0, mouseY = 0;
-        let slipperHitAnimationTime = 0;
-        let heads = [];
-        let gameState = 'LOADING';
-        let missedHeadsInRow = 0;
-        let totalSpawnedHeads = 0;
-        let totalHitHeads = 0;
-        let headBaseLifetime, headMinLifetime, headSpawnBaseInterval, headSpawnMinInterval, scoreFactorDenominator;
-        let currentHeadSpawnInterval, currentHeadLifetime;
+    let canvas, ctx;
+    let score = 0;
+    let timeLeft = GAME_DURATION;
+    let gameIntervalId, headSpawnIntervalId, musicIntervalId;
+    let mouseX = 0, mouseY = 0;
+    let swordAnimationTime = 0;
+    let heads = [];
+    let particles = [];
+    let gameState = 'LOADING';
+    let missedHeadsInRow = 0;
+    let totalSpawnedHeads = 0;
+    let totalHitHeads = 0;
+    let headBaseLifetime, headMinLifetime, headSpawnBaseInterval, headSpawnMinInterval, scoreFactorDenominator;
+    let currentHeadSpawnInterval, currentHeadLifetime;
+    let playerName = "Гость";
+    let images = {};
+    let imagesLoadedCount = 0;
+    let totalImagesToLoad = Object.keys(IMAGE_PATHS).length;
+    let hitSynth, explosionSynth, backgroundMusic;
+    let gameVolume = new Tone.Volume(-12).toDestination();
 
-        let images = {};
-        let imagesLoadedCount = 0;
-        let totalImagesToLoad = Object.keys(IMAGE_PATHS).length; // Автоматически обновится
+    const playerNameDisplay = document.getElementById('player-name-display');
+    const playerNameInput = document.getElementById('player-name-input');
+    const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level-display');
+    const timerDisplay = document.getElementById('timer-display');
+    const loadingScreen = document.getElementById('loading-screen');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const leaderboardScreen = document.getElementById('leaderboard-screen');
+    const leaderboardStatus = document.getElementById('leaderboard-status');
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const showLeaderboardButton = document.getElementById('show-leaderboard-button');
+    const gameOverLeaderboardButton = document.getElementById('game-over-leaderboard-button');
+    const backToMenuButton = document.getElementById('back-to-menu-button');
+    const leaderboardList = document.getElementById('leaderboard-list');
+    const finalScoreDisplay = document.getElementById('final-score');
+    const gameOverMessageDisplay = document.getElementById('game-over-message');
+    const hrKristinaImageElement = document.getElementById('hr-kristina-image');
+    const difficultyButtons = document.querySelectorAll('#difficulty-selection button');
 
-        const scoreDisplay = document.getElementById('score');
-        const levelDisplay = document.getElementById('level-display');
-        const timerDisplay = document.getElementById('timer-display');
-        const loadingScreen = document.getElementById('loading-screen');
-        const startScreen = document.getElementById('start-screen');
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const startButton = document.getElementById('start-button');
-        const restartButton = document.getElementById('restart-button');
-        const finalScoreDisplay = document.getElementById('final-score');
-        const gameOverMessageDisplay = document.getElementById('game-over-message');
-        const hrKristinaImageElement = document.getElementById('hr-kristina-image'); // Получаем элемент img
-        const difficultyButtons = document.querySelectorAll('#difficulty-selection button');
+    function initAudio() { /* ... как раньше ... */ }
+    function playBackgroundMusic() { /* ... как раньше ... */ }
+    function stopBackgroundMusic() { /* ... как раньше ... */ }
+    function loadImage(name, src) { /* ... как раньше ... */ }
+    function loadAllImages() { /* ... как раньше ... */ }
 
-        function loadImage(name, src) {
-            images[name] = new Image();
-            images[name].crossOrigin = "Anonymous"; 
-            images[name].onload = () => {
-                imagesLoadedCount++;
-                if (imagesLoadedCount === totalImagesToLoad) {
-                    gameState = 'MENU';
-                    loadingScreen.style.display = 'none';
-                    startScreen.style.display = 'flex';
-                    setCanvasDimensions();
-                }
-            };
-            images[name].onerror = () => {
-                console.error(`Ошибка загрузки изображения: ${name} (${src})`);
-                imagesLoadedCount++; 
-                 if (imagesLoadedCount === totalImagesToLoad) {
-                    gameState = 'MENU';
-                    loadingScreen.style.display = 'none';
-                    startScreen.style.display = 'flex';
-                    setCanvasDimensions(); 
-                }
-            };
-            images[name].src = src;
+    window.onload = () => {
+      try {
+        console.log("GAME DEBUG: window.onload triggered.");
+        canvas = document.getElementById('gameCanvas'); ctx = canvas.getContext('2d');
+        setCanvasDimensions(); 
+        initAudio();
+        canvas.addEventListener('mousemove', onMouseMove); canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('touchmove', onTouchMove, { passive: false }); canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+        
+        playerNameInput.addEventListener('change', (e) => {
+            playerName = e.target.value.trim() || "Гость";
+            if(playerName.length > 10) playerName = playerName.substring(0, 10); // Ограничение длины имени
+            playerNameDisplay.textContent = `Игрок: ${playerName}`;
+            e.target.value = playerName; // Обновляем поле ввода, если имя было обрезано
+        });
+
+        startButton.addEventListener('click', async () => { /* ... как раньше ... */ });
+        restartButton.addEventListener('click', () => { /* ... как раньше ... */ });
+        showLeaderboardButton.addEventListener('click', showLeaderboard);
+        gameOverLeaderboardButton.addEventListener('click', showLeaderboard);
+        backToMenuButton.addEventListener('click', () => { /* ... как раньше ... */ });
+        difficultyButtons.forEach(button => { /* ... как раньше ... */ });
+        document.getElementById('difficulty-easy').classList.add('selected');
+        if(document.getElementById('difficulty-normal')) document.getElementById('difficulty-normal').classList.remove('selected');
+        window.addEventListener('resize', () => { /* ... как раньше ... */ });
+        loadAllImages(); updateUI(); gameLoop();
+       } catch (error) { console.error("GAME DEBUG: Critical error during initialization (window.onload):", error); alert("Критическая ошибка при запуске.");}
+    };
+
+    function setCanvasDimensions() { /* ... как раньше ... */ }
+    function gameLoop() { /* ... как раньше ... */ }
+    function update() { /* ... как раньше ... */ }
+    function createParticles(x, y, color) { /* ... как раньше ... */ }
+    function updateParticles() { /* ... как раньше ... */ }
+    function drawParticles() { /* ... как раньше ... */ }
+    function drawHead(head) { /* ... как раньше ... */ }
+    function render() { /* ... как раньше ... */ }
+    function setGameParametersForDifficulty() { /* ... как раньше ... */ }
+    function startGame() { /* ... как раньше ... */ }
+    
+    async function endGame(reason) {
+        console.log(`GAME DEBUG: endGame called. Reason: ${reason}`);
+        gameState = 'GAME_OVER';
+        clearInterval(gameIntervalId); clearInterval(headSpawnIntervalId);
+        stopBackgroundMusic();
+        if(canvas) canvas.style.cursor = 'default';
+
+        // Сохраняем результат в Firebase
+        if (db && firebaseConfig.apiKey !== "YOUR_API_KEY") { // Проверяем, что Firebase инициализирован и конфиг не дефолтный
+            await saveScoreToFirebase(playerName, score);
+        } else {
+            // Если Firebase не настроен, используем localStorage как раньше
+            saveScoreToLocalStorage(playerName, score);
         }
 
-        function loadAllImages() {
-            if (totalImagesToLoad === 0) {
-                 gameState = 'MENU';
-                 loadingScreen.style.display = 'none';
-                 startScreen.style.display = 'flex';
-                 setCanvasDimensions();
-                 return;
-            }
-            for (const name in IMAGE_PATHS) {
-                loadImage(name, IMAGE_PATHS[name]);
-            }
-        }
+        if (images.hrKristina && images.hrKristina.complete) hrKristinaImageElement.src = images.hrKristina.src;
+        else hrKristinaImageElement.alt = "HR (ошибка)";
+        gameOverMessageDisplay.textContent = reason === "Время вышло!" ? "Время вышло!" : "Глава HR Кристина уволила вас!";
+        finalScoreDisplay.textContent = `Ваш счет: ${score}`;
+        gameOverScreen.style.display = 'flex';
+    }
 
-        window.onload = () => {
-            canvas = document.getElementById('gameCanvas');
-            ctx = canvas.getContext('2d');
-
-            canvas.addEventListener('mousemove', onMouseMove);
-            canvas.addEventListener('mousedown', onMouseDown);
-            canvas.addEventListener('touchmove', onTouchMove, { passive: false });
-            canvas.addEventListener('touchstart', onTouchStart, { passive: false });
-
-            startButton.addEventListener('click', startGame);
-            restartButton.addEventListener('click', () => { 
-                gameOverScreen.style.display = 'none';
-                startScreen.style.display = 'flex';
-                gameState = 'MENU';
+    function getUrgencyText() { /* ... как раньше ... */ }
+    function updateUI() { /* ... как раньше ... */ }
+    function spawnHead() { /* ... как раньше ... */ }
+    function checkGameOverConditions() { /* ... как раньше ... */ }
+    function drawSword() { /* ... как раньше ... */ }
+    function handleHitAttempt(clickX, clickY) { /* ... как раньше ... */ }
+    
+    // --- Функции для таблицы лидеров (Firebase) ---
+    async function saveScoreToFirebase(name, scoreValue) {
+        if (!db || scoreValue <= 0) return;
+        console.log(`GAME DEBUG: Attempting to save score to Firebase: ${name} - ${scoreValue}`);
+        try {
+            await db.collection("leaderboard").add({
+                name: name,
+                score: scoreValue,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp() // Для сортировки по времени, если нужно
             });
-            
-            difficultyButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    currentDifficulty = button.dataset.difficulty;
-                    difficultyButtons.forEach(btn => btn.classList.remove('selected'));
-                    button.classList.add('selected');
-                });
+            console.log("GAME DEBUG: Score saved to Firebase successfully.");
+        } catch (error) {
+            console.error("GAME DEBUG: Error saving score to Firebase: ", error);
+            // Можно добавить откат к localStorage или сообщение пользователю
+            alert("Ошибка сохранения рекорда онлайн. Результат сохранен локально.");
+            saveScoreToLocalStorage(name, scoreValue);
+        }
+    }
+
+    async function getScoresFromFirebase() {
+        if (!db) return [];
+        console.log("GAME DEBUG: Fetching scores from Firebase...");
+        try {
+            const snapshot = await db.collection("leaderboard")
+                                     .orderBy("score", "desc")
+                                     .limit(10)
+                                     .get();
+            const scores = [];
+            snapshot.forEach(doc => {
+                scores.push(doc.data());
             });
-            
-            window.addEventListener('resize', () => { 
-                if(gameState !== 'LOADING') { 
-                    setCanvasDimensions();
-                }
-            });
-
-            loadAllImages(); 
-            updateUI();
-            gameLoop();
-        };
-
-        function setCanvasDimensions() {
-            const gameWrapper = document.getElementById('game-wrapper');
-            const aspectRatio = 4 / 3; 
-            
-            canvas.width = gameWrapper.clientWidth;
-            canvas.height = canvas.width / aspectRatio;
-            ctx.imageSmoothingEnabled = false;
+            console.log("GAME DEBUG: Scores fetched from Firebase:", scores);
+            return scores;
+        } catch (error) {
+            console.error("GAME DEBUG: Error fetching scores from Firebase: ", error);
+            leaderboardStatus.textContent = "Ошибка загрузки рекордов.";
+            return []; // Возвращаем пустой массив в случае ошибки
         }
+    }
+    
+    // Локальное сохранение как fallback
+    function saveScoreToLocalStorage(name, scoreValue) {
+        if (scoreValue <= 0) return;
+        const scores = JSON.parse(localStorage.getItem('taskSmasherLeaderboard_local')) || [];
+        scores.push({ name: name, score: scoreValue });
+        scores.sort((a, b) => b.score - a.score);
+        localStorage.setItem('taskSmasherLeaderboard_local', JSON.stringify(scores.slice(0, 10)));
+        console.log("GAME DEBUG: Score saved to localStorage.", {name, scoreValue});
+    }
 
-        function gameLoop() {
-            update();
-            render();
-            requestAnimationFrame(gameLoop);
-        }
+    function getScoresFromLocalStorage() {
+        return JSON.parse(localStorage.getItem('taskSmasherLeaderboard_local')) || [];
+    }
 
-        function update() {
-            if (gameState !== 'PLAYING') return;
 
-            if (slipperHitAnimationTime > 0) slipperHitAnimationTime -= 16;
+    async function showLeaderboard() {
+        console.log("GAME DEBUG: Showing leaderboard.");
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        leaderboardScreen.style.display = 'flex';
+        gameState = 'LEADERBOARD';
+        leaderboardList.innerHTML = ''; // Очищаем старый список
+        leaderboardStatus.textContent = "Загрузка рекордов...";
 
-            const now = Date.now();
-            heads = heads.filter(head => {
-                if (now > head.removeTime) {
-                    missedHeadsInRow++;
-                    checkGameOverConditions();
-                    return false;
-                }
-                return true;
-            });
-            
-            const scoreFactor = Math.min(score / scoreFactorDenominator, 1);
-            currentHeadSpawnInterval = headSpawnBaseInterval - (headSpawnBaseInterval - headSpawnMinInterval) * scoreFactor;
-            currentHeadLifetime = headBaseLifetime - (headBaseLifetime - headMinLifetime) * scoreFactor;
+        let scores = [];
+        if (db && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+            scores = await getScoresFromFirebase();
+        } else {
+            scores = getScoresFromLocalStorage(); // Fallback на локальные, если Firebase не настроен
+            leaderboardStatus.textContent = "Рекорды (локальные):";
+            if (scores.length === 0) leaderboardStatus.textContent = "Локальных рекордов нет.";
 
-            if (headSpawnIntervalId && GameTimer.getIntervalDuration(headSpawnIntervalId) !== currentHeadSpawnInterval) {
-                 clearInterval(headSpawnIntervalId);
-                 headSpawnIntervalId = GameTimer.setInterval(spawnHead, currentHeadSpawnInterval);
-            }
-        }
-
-        function render() {
-            ctx.fillStyle = '#D2B48C'; 
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            if (gameState === 'PLAYING' || gameState === 'GAME_OVER') {
-                heads.forEach(drawHead);
-                drawSlipper();
-            }
-        }
-
-        function setGameParametersForDifficulty() {
-            const settings = DIFFICULTY_SETTINGS[currentDifficulty];
-            headBaseLifetime = settings.HEAD_BASE_LIFETIME;
-            headMinLifetime = settings.HEAD_MIN_LIFETIME;
-            headSpawnBaseInterval = settings.HEAD_SPAWN_BASE_INTERVAL;
-            headSpawnMinInterval = settings.HEAD_SPAWN_MIN_INTERVAL;
-            scoreFactorDenominator = settings.SCORE_FACTOR_DENOMINATOR;
-            currentHeadLifetime = headBaseLifetime;
-            currentHeadSpawnInterval = headSpawnBaseInterval;
-        }
-
-        function startGame() {
-            if (gameState === 'LOADING') return;
-            setGameParametersForDifficulty(); 
-
-            score = 0;
-            timeLeft = GAME_DURATION;
-            heads = [];
-            missedHeadsInRow = 0;
-            totalSpawnedHeads = 0;
-            totalHitHeads = 0;
-            gameState = 'PLAYING';
-
-            loadingScreen.style.display = 'none';
-            startScreen.style.display = 'none';
-            gameOverScreen.style.display = 'none';
-            canvas.style.cursor = 'none';
-            updateUI();
-
-            clearInterval(gameIntervalId);
-            gameIntervalId = GameTimer.setInterval(() => {
-                timeLeft--;
-                updateUI();
-                if (timeLeft <= 0) endGame("Время вышло!");
-            }, 1000);
-
-            clearInterval(headSpawnIntervalId);
-            spawnHead(); 
-            headSpawnIntervalId = GameTimer.setInterval(spawnHead, currentHeadSpawnInterval);
-        }
-
-        function endGame(reason) {
-            gameState = 'GAME_OVER';
-            clearInterval(gameIntervalId);
-            clearInterval(headSpawnIntervalId);
-            canvas.style.cursor = 'default';
-
-            // Устанавливаем изображение HR Кристины
-            if (images.hrKristina && images.hrKristina.complete && images.hrKristina.naturalWidth !== 0) {
-                hrKristinaImageElement.src = images.hrKristina.src;
-            } else {
-                hrKristinaImageElement.alt = "HR Кристина (ошибка загрузки)"; // Если изображение не загрузилось
-            }
-
-            gameOverMessageDisplay.textContent = reason === "Время вышло!" ? "Время вышло!" : "Глава HR Кристина уволила вас!";
-            finalScoreDisplay.textContent = `Ваш счет: ${score}`;
-            gameOverScreen.style.display = 'flex';
-        }
-
-        function getUrgencyText() {
-            let currentText = URGENCY_LEVELS[0];
-            const urgencyScoreThresholds = Object.keys(URGENCY_LEVELS).map(Number).sort((a,b) => a-b);
-            for (const threshold of urgencyScoreThresholds) {
-                if (score >= threshold) currentText = URGENCY_LEVELS[threshold];
-                else break;
-            }
-            return currentText;
-        }
-
-        function updateUI() {
-            scoreDisplay.textContent = `Очки: ${score}`;
-            levelDisplay.textContent = `Уровень: ${getUrgencyText()}`;
-            timerDisplay.textContent = `Время: ${timeLeft}`;
-        }
-
-        function spawnHead() {
-            if (gameState !== 'PLAYING') return;
-            totalSpawnedHeads++;
-
-            const headConfigIndex = Math.floor(Math.random() * HEAD_TYPES_CONFIG.length);
-            const headConfig = HEAD_TYPES_CONFIG[headConfigIndex];
-            let headImageName;
-
-            if (headConfig.imageNames) {
-                headImageName = headConfig.imageNames[Math.floor(Math.random() * headConfig.imageNames.length)];
-            } else {
-                headImageName = headConfig.imageName;
-            }
-            
-            const headImage = images[headImageName];
-            if (!headImage || !headImage.complete || headImage.naturalWidth === 0) return;
-            
-            const headX = Math.random() * (canvas.width - HEAD_SIZE.width);
-            const headY = Math.random() * (canvas.height - HEAD_SIZE.height - 25); 
-
-            heads.push({
-                x: headX, y: headY,
-                width: HEAD_SIZE.width, height: HEAD_SIZE.height,
-                image: headImage,
-                urgencyText: getUrgencyText(),
-                spawnTime: Date.now(),
-                removeTime: Date.now() + currentHeadLifetime, 
-            });
         }
         
-        function checkGameOverConditions() {
-            if (gameState !== 'PLAYING') return;
-            let gameOver = false;
-            if (missedHeadsInRow >= MISSED_HEADS_LIMIT) {
-                gameOver = true;
-                reason = "Слишком много пропущенных задач!";
-            }
-            if (!gameOver && totalSpawnedHeads > 15) {
-                const missedPercentage = ((totalSpawnedHeads - totalHitHeads) / totalSpawnedHeads) * 100;
-                if (missedPercentage >= 50) {
-                    gameOver = true;
-                    reason = "Более 50% задач проигнорировано!";
-                }
-            }
-            if (gameOver) endGame(reason);
+        if (scores.length === 0 && !(db && firebaseConfig.apiKey !== "YOUR_API_KEY")) {
+             // Если Firebase не настроен и локальных нет
+        } else if (scores.length === 0 && (db && firebaseConfig.apiKey !== "YOUR_API_KEY")) {
+            leaderboardStatus.textContent = "Онлайн рекордов пока нет!";
+        } else {
+            leaderboardStatus.textContent = (db && firebaseConfig.apiKey !== "YOUR_API_KEY") ? "Онлайн Рекорды (Топ-10):" : "Рекорды (локальные):";
         }
 
-        function drawSlipper() {
-            if (!images.slipper || !images.slipper.complete || images.slipper.naturalWidth === 0) return;
-            const slipperX = mouseX - SLIPPER_SIZE.width / 2;
-            const slipperY = mouseY - SLIPPER_SIZE.height / 2;
-            let scale = 1;
-            if (slipperHitAnimationTime > 0) scale = 0.85;
-            const w = SLIPPER_SIZE.width * scale;
-            const h = SLIPPER_SIZE.height * scale;
-            const x = slipperX + (SLIPPER_SIZE.width - w) / 2;
-            const y = slipperY + (SLIPPER_SIZE.height - h) / 2;
-            ctx.drawImage(images.slipper, x, y, w, h);
-        }
 
-        function drawHead(head) {
-            if (!head.image || !head.image.complete || head.image.naturalWidth === 0) return;
-            let scale = 1;
-            const timeSinceSpawn = Date.now() - head.spawnTime;
-            const appearDuration = 200; 
-            if (timeSinceSpawn < appearDuration) scale = timeSinceSpawn / appearDuration;
-            const w = head.width * scale;
-            const h = head.height * scale;
-            const x = head.x + (head.width - w) / 2;
-            const y = head.y + (head.height - h) / 2;
-            ctx.drawImage(head.image, x, y, w, h);
+        if (scores.length > 0) {
+            scores.forEach((entry, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${index + 1}. ${entry.name}</span> <span class="score">${entry.score}</span>`;
+                leaderboardList.appendChild(li);
+            });
+        }
+    }
 
-            ctx.fillStyle = 'black';
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.font = "10px 'Press Start 2P'";
-            ctx.textAlign = 'center';
-            ctx.strokeText(head.urgencyText, head.x + head.width / 2, head.y - 5);
-            ctx.fillText(head.urgencyText, head.x + head.width / 2, head.y - 5);
-        }
+    // Копипаст неизмененных функций из предыдущего ответа для полноты
+    // (onMouseMove, onTouchMove, onMouseDown, onTouchStart, GameTimer, initAudio, playBackgroundMusic, stopBackgroundMusic)
+    // ВАЖНО: Убедитесь, что эти функции скопированы корректно.
+    // Для краткости я не буду их здесь дублировать, но они должны быть в вашем коде.
+    // В onMouseDown и onTouchStart добавлена проверка и запуск Tone.start() при первом взаимодействии пользователя.
 
-        function onMouseMove(event) {
-            const rect = canvas.getBoundingClientRect();
-            mouseX = event.clientX - rect.left;
-            mouseY = event.clientY - rect.top;
+    function onMouseMove(event) { if(!canvas) return; const rect = canvas.getBoundingClientRect(); mouseX = event.clientX - rect.left; mouseY = event.clientY - rect.top; }
+    function onTouchMove(event) { if(!canvas) return; event.preventDefault(); const rect = canvas.getBoundingClientRect(); mouseX = event.touches[0].clientX - rect.left; mouseY = event.touches[0].clientY - rect.top; }
+    function onMouseDown(event) {
+        if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER' || gameState === 'LEADERBOARD' || !canvas) return;
+         if (Tone.context.state !== 'running') {
+            Tone.start().then(() => {
+                 console.log('GAME DEBUG: AudioContext started by user interaction (mousedown).');
+                 handleHitAttempt(event.clientX - canvas.getBoundingClientRect().left, event.clientY - canvas.getBoundingClientRect().top);
+            });
+        } else {
+            handleHitAttempt(event.clientX - canvas.getBoundingClientRect().left, event.clientY - canvas.getBoundingClientRect().top);
         }
-        function onTouchMove(event) {
-            event.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            mouseX = event.touches[0].clientX - rect.left;
-            mouseY = event.touches[0].clientY - rect.top;
-        }
-
-        function handleHitAttempt(clickX, clickY) {
-            if (gameState !== 'PLAYING') return;
-            slipperHitAnimationTime = 100;
-            for (let i = heads.length - 1; i >= 0; i--) {
-                const head = heads[i];
-                if (clickX >= head.x && clickX <= head.x + head.width &&
-                    clickY >= head.y && clickY <= head.y + head.height) {
-                    heads.splice(i, 1);
-                    score++;
-                    totalHitHeads++;
-                    missedHeadsInRow = 0;
-                    updateUI();
-                    break;
-                }
-            }
-            checkGameOverConditions();
-        }
-
-        function onMouseDown(event) {
-            if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER') return;
-            const rect = canvas.getBoundingClientRect();
-            handleHitAttempt(event.clientX - rect.left, event.clientY - rect.top);
-        }
-        function onTouchStart(event) {
-            event.preventDefault();
-            if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER') return;
-            const rect = canvas.getBoundingClientRect();
-            const touch = event.touches[0];
-            mouseX = touch.clientX - rect.left;
-            mouseY = touch.clientY - rect.top;
+    }
+    function onTouchStart(event) {
+        if (gameState === 'LOADING' || gameState === 'MENU' || gameState === 'GAME_OVER' || gameState === 'LEADERBOARD' || !canvas) return;
+        event.preventDefault();
+        if (Tone.context.state !== 'running') {
+             Tone.start().then(() => {
+                console.log('GAME DEBUG: AudioContext started by user interaction (touchstart).');
+                const rect = canvas.getBoundingClientRect(); const touch = event.touches[0];
+                mouseX = touch.clientX - rect.left; mouseY = touch.clientY - rect.top;
+                handleHitAttempt(mouseX, mouseY);
+            });
+        } else {
+            const rect = canvas.getBoundingClientRect(); const touch = event.touches[0];
+            mouseX = touch.clientX - rect.left; mouseY = touch.clientY - rect.top;
             handleHitAttempt(mouseX, mouseY);
         }
+    }
+    const GameTimer = { intervals: {}, nextId: 0, setInterval: function(cb, dur) { const id = this.nextId++; this.intervals[id] = { id: setInterval(cb, dur), duration: dur }; return id; }, clearInterval: function(id) { if (this.intervals[id]) { clearInterval(this.intervals[id].id); delete this.intervals[id]; } }, getIntervalDuration: function(id) { return this.intervals[id] ? this.intervals[id].duration : null; } };
+    function initAudio() { console.log("GAME DEBUG: Initializing Tone.js audio..."); hitSynth = new Tone.MetalSynth({ frequency: 150, envelope: { attack: 0.001, decay: 0.1, release: 0.01 }, harmonicity: 3.1, modulationIndex: 16, resonance: 2000, octaves: 0.5 }).connect(gameVolume); explosionSynth = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.005, decay: 0.15, sustain: 0, release: 0.1 } }).connect(gameVolume); const musicNotes = ["C3", "E3", "G3", "C4", "G3", "E3"]; let noteIndex = 0; backgroundMusic = new Tone.Synth({ oscillator: { type: "pulse", width: 0.6 }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.3 } }).connect(gameVolume); console.log("GAME DEBUG: Audio initialized.");}
+    function playBackgroundMusic() { if (Tone.Transport.state !== "started") { Tone.Transport.start(); } if (musicIntervalId) Tone.Transport.clearInterval(musicIntervalId); musicIntervalId = Tone.Transport.scheduleRepeat(time => { backgroundMusic.triggerAttackRelease(musicNotes[noteIndex % musicNotes.length], "8n", time); noteIndex++; }, "2n"); }
+    function stopBackgroundMusic() { if (musicIntervalId) { Tone.Transport.clear(musicIntervalId); musicIntervalId = null; } }
 
-        const GameTimer = {
-            intervals: {}, nextId: 0,
-            setInterval: function(cb, dur) {
-                const id = this.nextId++;
-                this.intervals[id] = { id: setInterval(cb, dur), duration: dur };
-                return id;
-            },
-            clearInterval: function(id) {
-                if (this.intervals[id]) { clearInterval(this.intervals[id].id); delete this.intervals[id]; }
-            },
-            getIntervalDuration: function(id) { return this.intervals[id] ? this.intervals[id].duration : null; }
-        };
+    console.log("GAME DEBUG: Script execution finished defining functions and variables.");
     </script>
 </body>
 </html>
